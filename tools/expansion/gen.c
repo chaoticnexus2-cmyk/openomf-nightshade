@@ -39,7 +39,8 @@ static void set_str(char **dst, const char *s) {
 // Describes one enemy fighter in a tournament.
 typedef struct {
     const char *name; // display name (<= 17 chars)
-    int pilot_id;     // maps to an OMF pilot enum (cosmetic in tournament mode)
+    int pilot_id;     // engine logic key (kept off PILOT_KREISSACK to avoid the gate)
+    int photo_id;     // WORLD.PIC face index, so the portrait matches the name
     int har_id;       // which mech (HAR_*)
     int difficulty;   // 0..3
     int power, agility, endurance; // 1..25
@@ -59,6 +60,9 @@ static void apply_enemy(sd_pilot *p, const enemy_spec *e) {
     // custom quote. Remap it to a normal pilot id.
     p->pilot_id = (uint8_t)((e->pilot_id >= PILOT_KREISSACK) ? PILOT_RAVEN : e->pilot_id);
     p->har_id = (uint8_t)e->har_id;
+    // Portrait face from WORLD.PIC (set as the tournament pic_file), so the
+    // shown face matches the character's name.
+    p->photo_id = (uint16_t)e->photo_id;
     p->difficulty = (uint8_t)(e->difficulty & 0x3);
     p->power = (uint8_t)e->power;
     p->agility = (uint8_t)e->agility;
@@ -271,7 +275,9 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     if(load_base(&trn, resource_dir, "NORTH_AM.TRN"))
         return 1;
 
-    // Keep NORTH_AM.BK / NORTH_AM.PIC from the template (valid binaries).
+    // Keep NORTH_AM.BK cutscene from the template, but use WORLD.PIC for portraits
+    // so each recast classic pilot shows their real face (and correct sex).
+    sd_tournament_set_pic_name(&trn, "WORLD.PIC");
     trn.tournament_id = 11; // not 4 (4 = World Championship special-case)
     // Post-World-Championship content: fee/value sit just above WORLD (10000/58000).
     trn.registration_fee = 15000;
@@ -283,23 +289,23 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     // pack is challenging for a post-World pilot but never one-hit-kills.
     // rank 1 is the final/boss in OMF's scheme; higher rank = earlier/weaker.
     static const enemy_spec roster[] = {
-        {"Cossette", PILOT_COSSETTE, HAR_KATANA, 0, 14, 14, 12, 2, 2, 4, 4, 3, 2, 9, 0, 0,
+        {"Cossette", PILOT_COSSETTE, 27, HAR_KATANA, 0, 14, 14, 12, 2, 2, 4, 4, 3, 2, 9, 0, 0,
          "You carry the blood of the one we buried, ~1. Walk away, or share that grave."},
-        {"Milano", PILOT_MILANO, HAR_JAGUAR, 0, 15, 18, 12, 2, 2, 5, 5, 3, 2, 8, 0, 0,
+        {"Milano", PILOT_MILANO, 17, HAR_JAGUAR, 0, 15, 18, 12, 2, 2, 5, 5, 3, 2, 8, 0, 0,
          "Fast, like your kin at the end. We let the swift ones run -- for a moment, ~1."},
-        {"Jean-Paul", PILOT_JEANPAUL, HAR_ELECTRA, 0, 17, 11, 14, 3, 3, 4, 4, 4, 3, 7, 0, 0,
+        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_ELECTRA, 0, 17, 11, 14, 3, 3, 4, 4, 4, 3, 7, 0, 0,
          "The Concord collects what it wants. Your blood refused us. Now you kneel, ~1."},
-        {"Christian", PILOT_CHRISTIAN, HAR_THORN, 1, 18, 8, 16, 4, 3, 3, 3, 5, 4, 6, 0, 0,
+        {"Christian", PILOT_CHRISTIAN, 9, HAR_THORN, 1, 18, 8, 16, 4, 3, 3, 3, 5, 4, 6, 0, 0,
          "Cut one of us down and two more rise. You are a single blade. We are the night."},
-        {"Angel", PILOT_ANGEL, HAR_PYROS, 1, 18, 12, 15, 4, 4, 4, 4, 5, 4, 5, 0, 0,
+        {"Angel", PILOT_ANGEL, 29, HAR_PYROS, 1, 18, 12, 15, 4, 4, 4, 4, 5, 4, 5, 0, 0,
          "I wept at the staged funeral, ~1. Vengeance is a fire -- let me show you how it burns."},
-        {"Ibrahim", PILOT_IBRAHIM, HAR_GARGOYLE, 1, 20, 6, 20, 5, 5, 3, 3, 6, 6, 4, 0, 0,
+        {"Ibrahim", PILOT_IBRAHIM, 15, HAR_GARGOYLE, 1, 20, 6, 20, 5, 5, 3, 3, 6, 6, 4, 0, 0,
          "I am the wall before the truth. None pass the Mountain. None reach Vance."},
-        {"Shirro", PILOT_SHIRRO, HAR_SHREDDER, 2, 22, 8, 18, 5, 5, 4, 4, 5, 5, 3, 0, 0,
+        {"Shirro", PILOT_SHIRRO, 22, HAR_SHREDDER, 2, 22, 8, 18, 5, 5, 4, 4, 5, 5, 3, 0, 0,
          "You found the Concord's door. Behind it waits the Hand of Vance. It only closes."},
-        {"Raven", PILOT_RAVEN, HAR_SHADOW, 2, 22, 16, 18, 5, 5, 6, 6, 5, 5, 2, 0, 0,
+        {"Raven", PILOT_RAVEN, 6, HAR_SHADOW, 2, 22, 16, 18, 5, 5, 6, 6, 5, 5, 2, 0, 0,
          "I am the whisper that lured your blood into the dark. Now I whisper your end, ~1."},
-        {"Vance", PILOT_RAVEN, HAR_NOVA, 2, 26, 16, 22, 6, 6, 6, 6, 6, 6, 1, 1, 2,
+        {"Vance", PILOT_STEFFAN, 7, HAR_NOVA, 2, 26, 16, 22, 6, 6, 6, 6, 6, 6, 1, 1, 2,
          "I am Vance. I built the Concord on your family's bones. Come and inherit their grave, ~1."},
     };
     build_roster(&trn, roster, (int)(sizeof(roster) / sizeof(roster[0])));
@@ -349,6 +355,7 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         return 1;
 
     trn.tournament_id = 12;
+    sd_tournament_set_pic_name(&trn, "WORLD.PIC"); // real classic-pilot faces
     // The hardest gauntlet -- sits at the top of the progression.
     trn.registration_fee = 25000;
     trn.assumed_initial_value = 90000;
@@ -358,23 +365,23 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
     // above Nightshade but still capped within the World Championship envelope
     // (arm_power <= 6, boss <= 7; difficulty <= 2) so it stays beatable.
     static const enemy_spec roster[] = {
-        {"Milano", PILOT_MILANO, HAR_CHRONOS, 1, 16, 20, 13, 3, 3, 6, 6, 4, 3, 9, 0, 0,
+        {"Milano", PILOT_MILANO, 17, HAR_CHRONOS, 1, 16, 20, 13, 3, 3, 6, 6, 4, 3, 9, 0, 0,
          "You scattered us, ~1. The patron rebuilt us in steel you've never seen. Too late now."},
-        {"Cossette", PILOT_COSSETTE, HAR_FLAIL, 1, 17, 12, 14, 4, 4, 4, 4, 4, 4, 8, 0, 0,
+        {"Cossette", PILOT_COSSETTE, 27, HAR_FLAIL, 1, 17, 12, 14, 4, 4, 4, 4, 4, 4, 8, 0, 0,
          "I mourned the Concord. Then the patron gave me a reason -- and a heavier flail."},
-        {"Jean-Paul", PILOT_JEANPAUL, HAR_PYROS, 1, 18, 11, 15, 4, 4, 5, 5, 5, 4, 7, 0, 0,
+        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_PYROS, 1, 18, 11, 15, 4, 4, 5, 5, 5, 4, 7, 0, 0,
          "Names are cheap, ~1. The patron deals in legacies older than your blood's grave."},
-        {"Angel", PILOT_ANGEL, HAR_KATANA, 1, 18, 14, 15, 5, 4, 5, 5, 5, 4, 6, 0, 0,
+        {"Angel", PILOT_ANGEL, 29, HAR_KATANA, 1, 18, 14, 15, 5, 4, 5, 5, 5, 4, 6, 0, 0,
          "Last time I burned. This time I cut. I begged you to walk away, ~1. Now I carve."},
-        {"Christian", PILOT_CHRISTIAN, HAR_GARGOYLE, 2, 20, 6, 18, 5, 4, 3, 3, 6, 6, 5, 0, 0,
+        {"Christian", PILOT_CHRISTIAN, 9, HAR_GARGOYLE, 2, 20, 6, 18, 5, 4, 3, 3, 6, 6, 5, 0, 0,
          "The wall got taller. The patron forged me from war-iron. Break yourself on me, ~1."},
-        {"Shirro", PILOT_SHIRRO, HAR_THORN, 2, 22, 8, 18, 5, 5, 4, 4, 6, 5, 4, 0, 0,
+        {"Shirro", PILOT_SHIRRO, 22, HAR_THORN, 2, 22, 8, 18, 5, 5, 4, 4, 6, 5, 4, 0, 0,
          "Vance ruled shadows. The patron is a god of the old war. You woke something, ~1."},
-        {"Raven", PILOT_RAVEN, HAR_NOVA, 2, 24, 16, 18, 6, 5, 6, 6, 6, 6, 3, 0, 0,
+        {"Raven", PILOT_RAVEN, 6, HAR_NOVA, 2, 24, 16, 18, 6, 5, 6, 6, 6, 6, 3, 0, 0,
          "I feared for Vance. I am certain for the patron. Your blood's name is in his ledger twice."},
-        {"Vance", PILOT_RAVEN, HAR_SHADOW, 2, 24, 18, 20, 6, 6, 6, 6, 6, 6, 2, 0, 0,
+        {"Vance", PILOT_STEFFAN, 7, HAR_SHADOW, 2, 24, 18, 20, 6, 6, 6, 6, 6, 6, 2, 0, 0,
          "I lived, ~1. The patron stitched me from the wreck you made. Win, and free us both."},
-        {"Kreissack", PILOT_RAVEN, HAR_NOVA, 2, 28, 16, 24, 7, 6, 6, 6, 7, 7, 1, 1, 2,
+        {"Kreissack", PILOT_CRYSTAL, 34, HAR_NOVA, 2, 28, 16, 24, 7, 6, 6, 6, 7, 7, 1, 1, 2,
          "Children always hunt the hand behind the knife. I am that hand. I made your blood a legend, "
          "then a corpse, ~1."},
     };
