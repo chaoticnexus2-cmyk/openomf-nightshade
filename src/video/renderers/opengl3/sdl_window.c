@@ -96,7 +96,7 @@ bool create_window(SDL_Window **window, int width, int height, bool fullscreen) 
     }
 
     if(fullscreen) {
-        if(SDL_SetWindowFullscreen(w, SDL_WINDOW_FULLSCREEN) != 0) {
+        if(SDL_SetWindowFullscreen(w, SDL_WINDOW_FULLSCREEN_DESKTOP) != 0) {
             log_error("Could not set fullscreen mode: %s", SDL_GetError());
         } else {
             log_info("Fullscreen mode enabled!");
@@ -112,7 +112,7 @@ bool create_window(SDL_Window **window, int width, int height, bool fullscreen) 
 
 bool resize_window(SDL_Window *window, int width, int height, bool fullscreen) {
     SDL_SetWindowSize(window, width, height);
-    if(SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN : 0) < 0) {
+    if(SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0) < 0) {
         log_error("Could not set fullscreen mode: %s", SDL_GetError());
         return false;
     }

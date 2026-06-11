@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "game/audio/music_tracker.h"
 #include "game/game_state.h"
@@ -21,6 +23,23 @@ typedef struct cutscene_local {
     int text_x;
     int text_y;
 } cutscene_local;
+
+// Set a cutscene page, substituting ~1 with the player's chosen pilot name so
+// authored tournament stories use the player's name instead of a hardcoded one.
+static void cutscene_set_chr_text(text *dst, const char *src, game_player *p1) {
+    str s;
+    str_from_c(&s, src ? src : "");
+    if(p1 && p1->pilot) {
+        char pname[20];
+        snprintf(pname, sizeof(pname), "%s", p1->pilot->name);
+        for(int n = (int)strlen(pname) - 1; n >= 0 && pname[n] == ' '; n--) {
+            pname[n] = '\0';
+        }
+        str_replace(&s, "~1", pname, -1);
+    }
+    text_set_from_str(dst, &s);
+    str_free(&s);
+}
 
 static int cutscene_next_scene(scene *scene) {
     game_player *player1 = game_state_get_player(scene->gs, 0);
@@ -55,7 +74,7 @@ static void cutscene_input_tick(scene *scene) {
                 if(i->event_data.action == ACT_KICK || i->event_data.action == ACT_PUNCH) {
                     if(player1->chr && player1->chr->cutscene_text[local->pos + 1]) {
                         local->pos++;
-                        text_set_from_c(local->current, player1->chr->cutscene_text[local->pos]);
+                        cutscene_set_chr_text(local->current, player1->chr->cutscene_text[local->pos], player1);
                     } else if(!player1->chr && local->pos < (int)vector_size(&local->texts) - 1) {
                         local->pos++;
                         text_set_from_str(local->current, vector_get(&local->texts, local->pos));
@@ -206,7 +225,7 @@ int cutscene_create(scene *scene) {
 
     if(p1->chr) {
         local->pos = 0;
-        text_set_from_c(local->current, p1->chr->cutscene_text[local->pos]);
+        cutscene_set_chr_text(local->current, p1->chr->cutscene_text[local->pos], p1);
     } else {
         str_split_c(&local->texts, text, '\n');
         local->pos = 0;

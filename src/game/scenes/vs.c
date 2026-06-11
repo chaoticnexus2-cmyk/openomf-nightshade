@@ -679,9 +679,18 @@ int vs_create(scene *scene) {
         local->insults[0] = NULL;
         local->insults[1] = create_insult_text(lang_get(747), 170, 60);
     } else if(player1->chr && player2->pilot) {
-        // tournament mode
+        // tournament mode -- substitute ~1 with the player's chosen pilot name
         local->insults[0] = NULL;
-        local->insults[1] = create_insult_text(player2->pilot->quotes[0], 150, 60);
+        str q;
+        str_from_c(&q, player2->pilot->quotes[0] ? player2->pilot->quotes[0] : "");
+        char pname[20];
+        snprintf(pname, sizeof(pname), "%s", player1->pilot->name);
+        for(int n = (int)strlen(pname) - 1; n >= 0 && pname[n] == ' '; n--) {
+            pname[n] = '\0';
+        }
+        str_replace(&q, "~1", pname, -1);
+        local->insults[1] = create_insult_text(str_c(&q), 150, 60);
+        str_free(&q);
     } else if(player2->pilot) {
         // 1 player
         local->insults[0] =

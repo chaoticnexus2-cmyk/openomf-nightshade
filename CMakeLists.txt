@@ -419,6 +419,18 @@ if(MINGW)
     endif ()
 endif()
 
+# OMF "Kyra" Expansion Pack tournament generator (off by default).
+OPTION(BUILD_EXPANSION "Build the OMF Kyra expansion pack generator" OFF)
+if(BUILD_EXPANSION)
+    add_executable(expansion_gen tools/expansion/gen.c)
+    target_link_libraries(expansion_gen PRIVATE ${CORELIBS})
+    target_link_libraries(expansion_gen PRIVATE openomf::argtable openomf::zip openomf::SDL2main openomf::epoxy)
+    add_executable(mkpilot tools/expansion/mkpilot.c)
+    target_link_libraries(mkpilot PRIVATE ${CORELIBS})
+    target_link_libraries(mkpilot PRIVATE openomf::argtable openomf::zip openomf::SDL2main openomf::epoxy)
+    message(STATUS "Development: Kyra expansion generator enabled")
+endif()
+
 # Make sure libraries are linked
 target_link_libraries(openomf PRIVATE ${CORELIBS})
 target_link_libraries(openomf PRIVATE openomf::argtable openomf::zip openomf::SDL2main openomf::epoxy)
