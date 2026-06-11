@@ -125,13 +125,25 @@ int sd_chr_load(sd_chr_file *chr, const path *filename) {
         }
         purchase_random_har_upgrades(&chr->enemies[i]->pilot);
         if(trn_loaded) {
-            memcpy(&chr->enemies[i]->pilot.palette, &pic.photos[trn.enemies[i]->photo_id]->pal, sizeof(vga_palette));
+            // Guard against a photo_id that is out of range for the loaded PIC.
+            // A savegame stores the tournament image (trn_image) it was created
+            // with; if the tournament is later updated to reference more/other
+            // photos, the stored PIC may have fewer entries. Clamp to avoid a
+            // NULL dereference, and skip the photo copy if no PIC photo exists.
+            int photo_idx = trn.enemies[i]->photo_id;
+            if(photo_idx < 0 || photo_idx >= pic.photo_count) {
+                photo_idx = 0;
+            }
+            const sd_pic_photo *ephoto = (photo_idx < pic.photo_count) ? pic.photos[photo_idx] : NULL;
+            if(ephoto != NULL) {
+                memcpy(&chr->enemies[i]->pilot.palette, &ephoto->pal, sizeof(vga_palette));
+            }
             chr->enemies[i]->pilot.photo = omf_calloc(1, sizeof(sd_sprite));
             if(trn.enemies[i]->photo) {
                 log_info("using pilot photo %d from tournament", i);
                 sd_sprite_copy(chr->enemies[i]->pilot.photo, trn.enemies[i]->photo);
-            } else {
-                sd_sprite_copy(chr->enemies[i]->pilot.photo, pic.photos[trn.enemies[i]->photo_id]->sprite);
+            } else if(ephoto != NULL) {
+                sd_sprite_copy(chr->enemies[i]->pilot.photo, ephoto->sprite);
             }
             //  copy all the "pilot" fields (eg. winnings) over from the tournament file
             chr->enemies[i]->pilot.trn_rank_money = trn.enemies[i]->trn_rank_money;
@@ -176,7 +188,9 @@ int sd_chr_load(sd_chr_file *chr, const path *filename) {
             chr->enemies[i]->pilot.winnings = trn.enemies[i]->winnings;
             chr->enemies[i]->pilot.total_value = trn.enemies[i]->total_value;
             chr->enemies[i]->pilot.photo_id = trn.enemies[i]->photo_id;
-            chr->enemies[i]->pilot.sex = pic.photos[trn.enemies[i]->photo_id]->sex;
+            if(ephoto != NULL) {
+                chr->enemies[i]->pilot.sex = ephoto->sex;
+            }
         }
         memread_buf(mr, chr->enemies[i]->unknown_a, 9);
         chr->enemies[i]->trn_index = memread_ubyte(mr);
