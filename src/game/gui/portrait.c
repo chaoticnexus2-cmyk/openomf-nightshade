@@ -48,10 +48,19 @@ int portrait_load(sd_sprite *s, vga_palette *pal, int pilot_id) {
     modmanager_get_player_pics(&pics);
 
     sd_sprite_free(s);
-    // Create new
+    // Create new. Guard against an out-of-range pilot_id: tournament pilots may
+    // carry a photo_id valid for their own PIC (e.g. NIGHTSHD.PIC) but out of
+    // range for PLAYERS.PIC, which would make sd_pic_get() return NULL.
     const sd_pic_photo *photo = sd_pic_get(&pics, pilot_id);
-    sd_sprite_copy(s, photo->sprite);
-    palette_copy(pal, &photo->pal, 0, 48);
+    if(photo == NULL) {
+        log_error("portrait photo id %d out of range for %s (%d photos); falling back to 0", pilot_id,
+                  path_c(&filename), pics.photo_count);
+        photo = sd_pic_get(&pics, 0);
+    }
+    if(photo != NULL) {
+        sd_sprite_copy(s, photo->sprite);
+        palette_copy(pal, &photo->pal, 0, 48);
+    }
     // Free pics
     sd_pic_free(&pics);
 

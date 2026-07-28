@@ -167,7 +167,9 @@ error:
 }
 
 const sd_pic_photo *sd_pic_get(const sd_pic_file *pic, int entry_id) {
-    if(entry_id < 0 || entry_id > pic->photo_count) {
+    // Valid indices are 0 .. photo_count-1; entry_id == photo_count would read
+    // one past the end of the photos array.
+    if(entry_id < 0 || entry_id >= pic->photo_count) {
         return NULL;
     }
     return pic->photos[entry_id];
