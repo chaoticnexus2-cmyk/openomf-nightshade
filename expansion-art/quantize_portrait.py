@@ -112,6 +112,46 @@ def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H):
     print(f"wrote {dst_path} ({out_w}x{out_h}, <=47 colours, index0=transparent)")
 
 
+# The original Nightshade Concord cast, matching enum concord_face in
+# tools/expansion/vance.h. Each stem has a portraits/<stem>.png source.
+CONCORD_STEMS = [
+    "cardinal",
+    "meridian",
+    "requiem",
+    "vesper",
+    "cinder",
+    "seraph",
+    "bastion",
+    "marrow",
+    "wager",
+    "sparrow",
+]
+
+
+def make_all(base_dir):
+    """Quantize every Concord portrait PNG into a sibling .vph.
+
+    Args:
+        base_dir: The expansion-art directory (contains a portraits/ subfolder).
+
+    Returns:
+        The list of .vph paths written.
+    """
+    from pathlib import Path
+
+    portraits_dir = Path(base_dir) / "portraits"
+    written = []
+    for stem in CONCORD_STEMS:
+        src = portraits_dir / f"{stem}.png"
+        dst = portraits_dir / f"{stem}.vph"
+        if not src.exists():
+            print(f"  (skip {stem}: {src} not found)")
+            continue
+        make_portrait(str(src), str(dst))
+        written.append(str(dst))
+    return written
+
+
 if __name__ == "__main__":
     base = sys.argv[1] if len(sys.argv) > 1 else "."
-    make_portrait(base + "/vance_raw.png", base + "/vance_portrait.vph")
+    make_all(base)

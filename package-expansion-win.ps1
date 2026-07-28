@@ -35,18 +35,19 @@ foreach ($file in "WORLD.PIC", "PLAYERS.PIC", "NORTH_AM.TRN", "WAR.TRN") {
 }
 Write-Host "Staged original assets into $resources" -ForegroundColor Cyan
 
-# 2. Inject the new Vance portrait into NIGHTSHD.PIC (fall back to a copy).
-$vph = Join-Path $art "vance_portrait.vph"
+# 2. Inject the original Nightshade Concord cast into NIGHTSHD.PIC (fall back to
+#    a plain WORLD.PIC copy if the portrait art is missing).
+$portraitsDir = Join-Path $art "portraits"
 $worldPic = Join-Path $resources "WORLD.PIC"
 $nightPic = Join-Path $resources "NIGHTSHD.PIC"
 $injected = $false
-if (Test-Path $vph) {
-    & (Join-Path $BuildDir "mkportrait.exe") $worldPic $vph $nightPic
+if (Test-Path $portraitsDir) {
+    & (Join-Path $BuildDir "mkportrait.exe") $worldPic $portraitsDir $nightPic
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "Injected new Vance portrait -> NIGHTSHD.PIC" -ForegroundColor Green
+        Write-Host "Injected Nightshade Concord cast -> NIGHTSHD.PIC" -ForegroundColor Green
         $injected = $true
     } else {
-        Write-Host "(Vance portrait injection failed -- falling back to WORLD.PIC faces)" -ForegroundColor Yellow
+        Write-Host "(portrait injection failed -- falling back to WORLD.PIC faces)" -ForegroundColor Yellow
     }
 }
 if (-not $injected) {

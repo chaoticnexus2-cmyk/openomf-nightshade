@@ -1,24 +1,26 @@
 /** @file mkportrait.c
- * @brief Inject a brand-new original antagonist portrait (Vance) into a PIC.
+ * @brief Inject the original Nightshade Concord antagonist faces into a PIC.
  *
  * OMF tournament enemies do not carry an embedded portrait on disk -- each enemy
  * references a face by photo_id into the tournament's shared PIC file. So adding
- * a NEW, non-reused face for the masked boss "Vance" means appending a new photo
- * to a copy of WORLD.PIC and pointing the enemy's photo_id at it.
+ * a NEW, non-reused cast of faces means appending new photos to a copy of
+ * WORLD.PIC and pointing each enemy's photo_id at the right slot.
  *
  * This tool:
  *   1. Loads WORLD.PIC (all the real classic-pilot faces).
- *   2. Loads the engine-ready indexed portrait produced by
- *      expansion-art/quantize_portrait.py (a raw ".vph": <u16 w><u16 h><48*3
- *      palette><w*h indices>, index 0 = transparent).
- *   3. Encodes it into an OMF sprite (sd_sprite_vga_encode) and appends it as a
- *      new sd_pic_photo at index VANCE_PHOTO_ID, padding any gap with clones of a
- *      real face so intermediate indices stay valid.
+ *   2. For each cast member (enum concord_face in vance.h), loads the
+ *      engine-ready indexed portrait produced by quantize_portrait.py
+ *      (raw ".vph": <u16 w><u16 h><48*3 palette><w*h indices>, index 0 = clear).
+ *   3. Encodes each into an OMF sprite (sd_sprite_vga_encode) and stores it at
+ *      its enum face index, padding any gap with clones of a real face so
+ *      intermediate indices stay valid.
  *   4. Saves the result as NIGHTSHD.PIC using the engine's own sd_pic_save().
  *
  * Output is byte-correct because it uses OpenOMF's own writers.
  *
- * Usage: mkportrait <WORLD.PIC path> <vance.vph path> <output.PIC path>
+ * Usage: mkportrait <WORLD.PIC path> <portraits_dir> <output.PIC path>
+ *   (a legacy 3-arg form with a single .vph file is still accepted and injected
+ *    at FACE_CARDINAL for backward compatibility.)
  * @license MIT
  */
 
@@ -76,17 +78,56 @@ static int load_vph(const char *path, sd_vga_image *img, vga_palette *pal) {
         pal->colors[i].g = palette_bytes[i * 3 + 1];
         pal->colors[i].b = palette_bytes[i * 3 + 2];
     }
-    printf("loaded portrait %s (%dx%d)\n", path, width, height);
     return 0;
+}
+
+// Build a single sd_pic_photo from a .vph file. Returns NULL on failure.
+static sd_pic_photo *build_photo(const char *vph_path, const sd_pic_photo *filler) {
+    sd_vga_image portrait;
+    vga_palette portrait_pal;
+    if(load_vph(vph_path, &portrait, &portrait_pal)) {
+        return NULL;
+    }
+    sd_pic_photo *photo = omf_calloc(1, sizeof(sd_pic_photo));
+    photo->is_player = 0; // enemy portrait
+    photo->sex = PILOT_SEX_MALE;
+    photo->unk_flag = filler->unk_flag; // match the "has image data" flag of real faces
+    memcpy(&photo->pal, &portrait_pal, sizeof(vga_palette));
+    photo->sprite = omf_calloc(1, sizeof(sd_sprite));
+    sd_sprite_create(photo->sprite);
+    if(sd_sprite_vga_encode(photo->sprite, &portrait) != SD_SUCCESS) {
+        fprintf(stderr, "FAILED to encode portrait sprite from %s\n", vph_path);
+        sd_sprite_free(photo->sprite);
+        omf_free(photo->sprite);
+        omf_free(photo);
+        sd_vga_image_free(&portrait);
+        return NULL;
+    }
+    photo->sprite->pos_x = 0;
+    photo->sprite->pos_y = 0;
+    sd_vga_image_free(&portrait);
+    return photo;
+}
+
+// Clone a filler face into slot i so intermediate indices stay valid/drawable.
+static void set_filler(sd_pic_file *pic, int i, const sd_pic_photo *filler) {
+    pic->photos[i] = omf_calloc(1, sizeof(sd_pic_photo));
+    pic->photos[i]->is_player = filler->is_player;
+    pic->photos[i]->sex = filler->sex;
+    pic->photos[i]->unk_flag = filler->unk_flag;
+    memcpy(&pic->photos[i]->pal, &filler->pal, sizeof(vga_palette));
+    pic->photos[i]->sprite = omf_calloc(1, sizeof(sd_sprite));
+    sd_sprite_create(pic->photos[i]->sprite);
+    sd_sprite_copy(pic->photos[i]->sprite, filler->sprite);
 }
 
 int main(int argc, char *argv[]) {
     if(argc < 4) {
-        fprintf(stderr, "Usage: %s <WORLD.PIC path> <vance.vph path> <output.PIC path>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <WORLD.PIC path> <portraits_dir> <output.PIC path>\n", argv[0]);
         return 1;
     }
     const char *world_path = argv[1];
-    const char *vph_path = argv[2];
+    const char *portraits_arg = argv[2];
     const char *out_path = argv[3];
 
     // 1. Load WORLD.PIC (all the real faces).
@@ -100,71 +141,62 @@ int main(int argc, char *argv[]) {
     }
     printf("loaded %s: %d photos\n", world_path, pic.photo_count);
 
-    if(pic.photo_count <= 0 || pic.photo_count >= MAX_PIC_PHOTOS) {
-        fprintf(stderr, "unexpected photo count %d in %s\n", pic.photo_count, world_path);
+    if(pic.photo_count <= 0 || pic.photo_count > CONCORD_FACE_BASE) {
+        fprintf(stderr, "unexpected photo count %d in %s (need <= %d)\n", pic.photo_count, world_path,
+                CONCORD_FACE_BASE);
         sd_pic_free(&pic);
         return 1;
     }
-    if(VANCE_PHOTO_ID >= MAX_PIC_PHOTOS) {
-        fprintf(stderr, "VANCE_PHOTO_ID %d exceeds PIC capacity\n", VANCE_PHOTO_ID);
-        sd_pic_free(&pic);
-        return 1;
-    }
-    if(pic.photo_count > VANCE_PHOTO_ID) {
-        fprintf(stderr, "WORLD.PIC already has %d photos (>= VANCE_PHOTO_ID %d); pick a higher slot\n", pic.photo_count,
-                VANCE_PHOTO_ID);
+    if(CONCORD_FACE_LAST >= MAX_PIC_PHOTOS) {
+        fprintf(stderr, "cast last face %d exceeds PIC capacity %d\n", CONCORD_FACE_LAST, MAX_PIC_PHOTOS);
         sd_pic_free(&pic);
         return 1;
     }
 
-    // 2. Load the engine-ready Vance portrait.
-    sd_vga_image portrait;
-    vga_palette portrait_pal;
-    if(load_vph(vph_path, &portrait, &portrait_pal)) {
-        sd_pic_free(&pic);
-        return 1;
-    }
-
-    // 3. Pad any gap between the existing faces and VANCE_PHOTO_ID with clones of
-    //    photo 0, so every intermediate index remains a valid (drawable) face.
+    // 2. Pad the gap between the real faces and the cast base with a valid face.
     const sd_pic_photo *filler = sd_pic_get(&pic, 0);
-    for(int i = pic.photo_count; i < VANCE_PHOTO_ID; i++) {
-        pic.photos[i] = omf_calloc(1, sizeof(sd_pic_photo));
-        pic.photos[i]->is_player = filler->is_player;
-        pic.photos[i]->sex = filler->sex;
-        pic.photos[i]->unk_flag = filler->unk_flag;
-        memcpy(&pic.photos[i]->pal, &filler->pal, sizeof(vga_palette));
-        pic.photos[i]->sprite = omf_calloc(1, sizeof(sd_sprite));
-        sd_sprite_create(pic.photos[i]->sprite);
-        sd_sprite_copy(pic.photos[i]->sprite, filler->sprite);
+    for(int i = pic.photo_count; i < CONCORD_FACE_BASE; i++) {
+        set_filler(&pic, i, filler);
     }
 
-    // 4. Build the new Vance photo at VANCE_PHOTO_ID.
-    sd_pic_photo *vance = omf_calloc(1, sizeof(sd_pic_photo));
-    vance->is_player = 0; // enemy portrait
-    vance->sex = PILOT_SEX_MALE;
-    vance->unk_flag = filler->unk_flag; // match the "has image data" flag of real faces
-    memcpy(&vance->pal, &portrait_pal, sizeof(vga_palette));
-    vance->sprite = omf_calloc(1, sizeof(sd_sprite));
-    sd_sprite_create(vance->sprite);
-    if(sd_sprite_vga_encode(vance->sprite, &portrait) != SD_SUCCESS) {
-        fprintf(stderr, "FAILED to encode Vance portrait sprite\n");
-        sd_sprite_free(vance->sprite);
-        omf_free(vance->sprite);
-        omf_free(vance);
-        sd_vga_image_free(&portrait);
-        sd_pic_free(&pic);
-        return 1;
+    // 3. Inject each cast face at its enum index. Determine whether the caller
+    //    gave us a portraits directory (batch) or a single legacy .vph file.
+    const char *stems[] = CONCORD_FACE_STEMS;
+    size_t len = strlen(portraits_arg);
+    int single_vph = (len >= 4 && strcmp(portraits_arg + len - 4, ".vph") == 0);
+
+    if(single_vph) {
+        // Legacy: inject one portrait at FACE_CARDINAL, filler for the rest.
+        sd_pic_photo *photo = build_photo(portraits_arg, filler);
+        if(!photo) {
+            sd_pic_free(&pic);
+            return 1;
+        }
+        pic.photos[FACE_CARDINAL] = photo;
+        for(int f = FACE_CARDINAL + 1; f <= CONCORD_FACE_LAST; f++) {
+            set_filler(&pic, f, filler);
+        }
+        printf("injected single portrait at index %d\n", FACE_CARDINAL);
+    } else {
+        for(int idx = 0; idx < CONCORD_FACE_TOTAL; idx++) {
+            char vph_path[1024];
+            snprintf(vph_path, sizeof(vph_path), "%s/%s.vph", portraits_arg, stems[idx]);
+            int face_index = CONCORD_FACE_BASE + idx;
+            sd_pic_photo *photo = build_photo(vph_path, filler);
+            if(!photo) {
+                // Missing/failed face: fall back to a valid filler so indices stay sane.
+                fprintf(stderr, "  (using filler for face %d '%s')\n", face_index, stems[idx]);
+                set_filler(&pic, face_index, filler);
+                continue;
+            }
+            pic.photos[face_index] = photo;
+            printf("  injected '%s' -> index %d\n", stems[idx], face_index);
+        }
     }
-    // Centre the portrait roughly where the classic faces sit.
-    vance->sprite->pos_x = 0;
-    vance->sprite->pos_y = 0;
 
-    pic.photos[VANCE_PHOTO_ID] = vance;
-    pic.photo_count = VANCE_PHOTO_ID + 1;
-    sd_vga_image_free(&portrait);
+    pic.photo_count = CONCORD_FACE_LAST + 1;
 
-    // 5. Save the extended PIC.
+    // 4. Save the extended PIC.
     path out;
     path_from_c(&out, out_path);
     int rc = sd_pic_save(&pic, &out);
@@ -173,7 +205,8 @@ int main(int argc, char *argv[]) {
         sd_pic_free(&pic);
         return 1;
     }
-    printf("wrote %s (%d photos; Vance face at index %d)\n", out_path, pic.photo_count, VANCE_PHOTO_ID);
+    printf("wrote %s (%d photos; Concord cast at %d..%d)\n", out_path, pic.photo_count, CONCORD_FACE_BASE,
+           CONCORD_FACE_LAST);
     sd_pic_free(&pic);
     return 0;
 }
