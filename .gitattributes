@@ -1,1 +1,11 @@
 * text=auto eol=lf
+
+# Binary expansion assets: never apply text/EOL normalization, or the raw
+# palette/index bytes get corrupted on checkout (garbled portraits & logos).
+*.vph binary
+*.lgo binary
+*.pal binary
+*.TRN binary
+*.PIC binary
+*.CHR binary
+*.BK binary

@@ -20,7 +20,7 @@ out a near-uniform dark background so the face sits on the VS/mechlab screen cle
 import struct
 import sys
 
-from PIL import Image
+from PIL import Image, ImageEnhance
 
 # Standard OMF pilot portrait footprint on the VS / mechlab screens.
 PORTRAIT_W = 51
@@ -115,7 +115,11 @@ def _quantize_to_fixed(image, ref_palette):
     pal_img = Image.new("P", (1, 1))
     pal_img.putpalette(flat)
 
-    quantized = image.quantize(palette=pal_img, dither=Image.Dither.NONE)
+    # Floyd-Steinberg dithering diffuses quantization error across neighbouring
+    # pixels, which turns hard colour bands into smooth-reading gradients on the
+    # limited 47-colour portrait palette. This is the main cure for the blocky,
+    # muddy look.
+    quantized = image.quantize(palette=pal_img, dither=Image.Dither.FLOYDSTEINBERG)
     # Translate PIL slot indices back to reference indices 1..47.
     remapped = [slot_to_refidx[slot] for slot in quantized.getdata()]
     return list(ref_palette[: 48 * 3]), remapped
@@ -139,6 +143,16 @@ def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H, ref_pa
         image = image.crop((0, top, width, top + new_height))
 
     image = image.resize((out_w, out_h), Image.LANCZOS)
+
+    # Pre-quantization tone shaping. The shared OMF portrait palette is limited
+    # and skews dark, so gently lift contrast, saturation and edge sharpness to
+    # keep the face reading after it snaps to the palette. Only applied in
+    # fixed-palette mode where the muddiness shows.
+    if ref_palette is not None:
+        image = ImageEnhance.Color(image).enhance(1.35)
+        image = ImageEnhance.Contrast(image).enhance(1.18)
+        image = ImageEnhance.Brightness(image).enhance(1.08)
+        image = ImageEnhance.Sharpness(image).enhance(1.6)
 
     key_color = _bg_key_color(image)
     alpha = _build_alpha(image, key_color)
