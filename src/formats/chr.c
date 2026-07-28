@@ -333,6 +333,9 @@ void sd_chr_append_unsanitized_filename(str *dst, const char *pilot_name) {
 }
 
 void sd_chr_free(sd_chr_file *chr) {
+    if(chr == NULL) {
+        return;
+    }
     for(int i = 0; i < chr->pilot.enemies_inc_unranked; i++) {
         if(chr->enemies[i] != NULL) {
             if(chr->enemies[i]->pilot.photo) {

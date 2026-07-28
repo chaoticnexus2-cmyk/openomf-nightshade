@@ -52,11 +52,16 @@ bool lab_dash_main_chr_load(component *c, void *userdata) {
     p1->chr = omf_calloc(1, sizeof(sd_chr_file));
     memcpy(p1->chr, chr, sizeof(sd_chr_file));
 
-    assert(oldchr != NULL);
+    // oldchr is NULL when no pilot was previously loaded (e.g. selecting a save
+    // straight from the main menu). Only free a previous CHR if one existed;
+    // the old assert(oldchr != NULL) is compiled out in release builds and let
+    // a NULL deref through into sd_chr_free().
     assert(oldchr != chr);
-    log_debug("Freeing previous CHR %s", oldchr->pilot.name);
-    sd_chr_free(oldchr);
-    omf_free(oldchr);
+    if(oldchr != NULL) {
+        log_debug("Freeing previous CHR %s", oldchr->pilot.name);
+        sd_chr_free(oldchr);
+        omf_free(oldchr);
+    }
 
     p1->pilot = &p1->chr->pilot;
 
