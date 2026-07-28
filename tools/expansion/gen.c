@@ -21,6 +21,7 @@
 #include "utils/allocator.h"
 #include "utils/c_string_util.h"
 #include "utils/path.h"
+#include "vance.h"
 #include "video/vga_palette.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -37,16 +38,26 @@ static void set_str(char **dst, const char *s) {
 }
 
 // Describes one enemy fighter in a tournament.
+//
+// IMPORTANT ordering note: the engine (sd_chr_from_trn in formats/chr.c) assigns
+// each non-secret enemy a rank sequentially by ARRAY ORDER -- roster[0] becomes
+// rank 1, roster[1] rank 2, and so on. The player then climbs DOWN toward rank 1
+// (mechlab_next_opponent picks rank == player_rank - 1; arena.c decrements the
+// winner's rank), and the victory cutscene only fires when the player beats the
+// rank-1 pilot while at rank 2 (newsroom.c "champion" check). Therefore the
+// FINAL BOSS must sit at roster[0] as a NORMAL (non-secret) rank-1 pilot, and the
+// weakest, first-fought enemy must be the LAST array element. Secret/gated bosses
+// (rank 0) can never trigger the ending cutscene, so they are not used here.
 typedef struct {
     const char *name; // display name (<= 17 chars)
     int pilot_id;     // engine logic key (kept off PILOT_KREISSACK to avoid the gate)
-    int photo_id;     // WORLD.PIC face index, so the portrait matches the name
+    int photo_id;     // face index into the tournament PIC, so the portrait matches the name
     int har_id;       // which mech (HAR_*)
     int difficulty;   // 0..3
     int power, agility, endurance; // 1..25
     int arm_power, leg_power, arm_speed, leg_speed, armor, stun; // 0..9
-    int rank;         // story rank (1 = toughest/boss in OMF ranking is low number)
-    int secret;       // gated boss (only appears after requirements met)
+    int rank;         // informational only; the engine re-ranks by array order (see note above)
+    int secret;       // gated boss (only appears after requirements met) -- unused for our bosses
     int req_rank;     // appears when player reaches this rank (for secret bosses)
     const char *quote; // pre-fight taunt (advances the plot)
 } enemy_spec;
@@ -275,45 +286,54 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     if(load_base(&trn, resource_dir, "NORTH_AM.TRN"))
         return 1;
 
-    // Keep NORTH_AM.BK cutscene from the template, but use WORLD.PIC for portraits
-    // so each recast classic pilot shows their real face (and correct sex).
-    sd_tournament_set_pic_name(&trn, "WORLD.PIC");
+    // Keep NORTH_AM.BK cutscene from the template. Use NIGHTSHD.PIC for portraits:
+    // it is a copy of WORLD.PIC with a brand-new hand-generated Vance face appended
+    // (see tools/expansion/mkportrait.c). Each recast classic pilot still shows a
+    // real OMF face; only Vance uses the new original portrait at photo index
+    // VANCE_PHOTO_ID.
+    sd_tournament_set_pic_name(&trn, "NIGHTSHD.PIC");
     trn.tournament_id = 11; // not 4 (4 = World Championship special-case)
     // Post-World-Championship content: fee/value sit just above WORLD (10000/58000).
     trn.registration_fee = 15000;
     trn.assumed_initial_value = 70000;
     trn.winnings_multiplier = 1.5f;
 
-    // Concord enforcers. Stats are tuned to the World Championship envelope
-    // (the hardest original enemies cap arm_power ~6 and difficulty 0-2), so the
+    // Concord enforcers, ordered BOSS-FIRST (roster[0] = rank 1 = fought last).
+    // See the enemy_spec ordering note above. Stats are tuned to the World
+    // Championship envelope (arm_power <= 6, boss <= 7, difficulty <= 2) so the
     // pack is challenging for a post-World pilot but never one-hit-kills.
-    // rank 1 is the final/boss in OMF's scheme; higher rank = earlier/weaker.
+    //
+    // photo_id VANCE_PHOTO_ID points at the new original Vance portrait in
+    // NIGHTSHD.PIC; every other pilot keeps a real WORLD.PIC face index.
     static const enemy_spec roster[] = {
-        {"Cossette", PILOT_COSSETTE, 27, HAR_KATANA, 0, 14, 14, 12, 2, 2, 4, 4, 3, 2, 9, 0, 0,
-         "You carry the blood of the one we buried, ~1. Walk away, or share that grave."},
-        {"Milano", PILOT_MILANO, 17, HAR_JAGUAR, 0, 15, 18, 12, 2, 2, 5, 5, 3, 2, 8, 0, 0,
-         "Fast, like your kin at the end. We let the swift ones run -- for a moment, ~1."},
-        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_ELECTRA, 0, 17, 11, 14, 3, 3, 4, 4, 4, 3, 7, 0, 0,
-         "The Concord collects what it wants. Your blood refused us. Now you kneel, ~1."},
-        {"Christian", PILOT_CHRISTIAN, 9, HAR_THORN, 1, 18, 8, 16, 4, 3, 3, 3, 5, 4, 6, 0, 0,
-         "Cut one of us down and two more rise. You are a single blade. We are the night."},
-        {"Angel", PILOT_ANGEL, 29, HAR_PYROS, 1, 18, 12, 15, 4, 4, 4, 4, 5, 4, 5, 0, 0,
-         "I wept at the staged funeral, ~1. Vengeance is a fire -- let me show you how it burns."},
-        {"Ibrahim", PILOT_IBRAHIM, 15, HAR_GARGOYLE, 1, 20, 6, 20, 5, 5, 3, 3, 6, 6, 4, 0, 0,
-         "I am the wall before the truth. None pass the Mountain. None reach Vance."},
-        {"Shirro", PILOT_SHIRRO, 22, HAR_SHREDDER, 2, 22, 8, 18, 5, 5, 4, 4, 5, 5, 3, 0, 0,
-         "You found the Concord's door. Behind it waits the Hand of Vance. It only closes."},
+        {"Vance", PILOT_STEFFAN, VANCE_PHOTO_ID, HAR_NOVA, 2, 26, 16, 22, 6, 6, 6, 6, 6, 6, 1, 0, 0,
+         "I am Vance. Your father built his legend in my shadow, ~1. I buried him under it. Come collect what is left."},
         {"Raven", PILOT_RAVEN, 6, HAR_SHADOW, 2, 22, 16, 18, 5, 5, 6, 6, 5, 5, 2, 0, 0,
-         "I am the whisper that lured your blood into the dark. Now I whisper your end, ~1."},
-        {"Vance", PILOT_STEFFAN, 7, HAR_NOVA, 2, 26, 16, 22, 6, 6, 6, 6, 6, 6, 1, 1, 2,
-         "I am Vance. I built the Concord on your family's bones. Come and inherit their grave, ~1."},
+         "I am the whisper that led your father into the dark, ~1. He followed a friend's voice. So will you."},
+        {"Shirro", PILOT_SHIRRO, 22, HAR_SHREDDER, 2, 22, 8, 18, 5, 5, 4, 4, 5, 5, 3, 0, 0,
+         "You found the Concord's door, ~1. I am the Hand that closes it. Your father knocked once. He never left."},
+        {"Ibrahim", PILOT_IBRAHIM, 15, HAR_GARGOYLE, 1, 20, 6, 20, 5, 5, 3, 3, 6, 6, 4, 0, 0,
+         "I am the Mountain -- the wall before the truth. Your father broke against me. None reach Vance. None ever "
+         "have."},
+        {"Angel", PILOT_ANGEL, 29, HAR_PYROS, 1, 18, 12, 15, 4, 4, 4, 4, 5, 4, 5, 0, 0,
+         "I wept at your father's funeral, ~1 -- the one we staged. Vengeance is a fire. Let me teach you how it "
+         "burns."},
+        {"Christian", PILOT_CHRISTIAN, 9, HAR_THORN, 1, 18, 8, 16, 4, 3, 3, 3, 5, 4, 6, 0, 0,
+         "Cut one of us down and two rise, ~1. Your father learned that. You are one blade. We are the whole night."},
+        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_ELECTRA, 0, 17, 11, 14, 3, 3, 4, 4, 4, 3, 7, 0, 0,
+         "The Concord collects champions, ~1. Your father refused us -- so we filed him under lost. Kneel, or join "
+         "him."},
+        {"Milano", PILOT_MILANO, 17, HAR_JAGUAR, 0, 15, 18, 12, 2, 2, 5, 5, 3, 2, 8, 0, 0,
+         "Fast, ~1 -- like your father at the end. We let the swift ones run. It makes the catching sweeter."},
+        {"Cossette", PILOT_COSSETTE, 27, HAR_KATANA, 0, 14, 14, 12, 2, 2, 4, 4, 3, 2, 9, 0, 0,
+         "You carry the old champion's name, ~1. We buried the man who wore it. Walk away, or share his grave."},
     };
     build_roster(&trn, roster, (int)(sizeof(roster) / sizeof(roster[0])));
 
     finalize_locale(&trn, "Nightshade Concord",
-                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}Your blood was murdered by the Nightshade Concord, a "
-                    "fight-cult ruled by the masked Vance. A trial for World Champions -- climb his enforcers and "
-                    "claim your reckoning. Entry: 15,000cr.");
+                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}Your father -- a legend of the ring -- was murdered by "
+                    "the Nightshade Concord, a fight-cult ruled by the masked Vance. Climb his enforcers. Claim your "
+                    "reckoning. Entry: 15,000cr.");
 
     // Generated title banner (see expansion-art/). Falls back to the template
     // logo if the art is missing.
@@ -324,20 +344,22 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     }
 
     // Victory cutscene -- second person and gender-neutral; ~1 = player name.
-    // Pages are kept short so they fit the cutscene text area.
+    // Pages are kept short so they fit the cutscene text area. The father's
+    // squadron pin introduced here is the prop that threads into Iron Reckoning.
     static const char *const story[] = {
-        "Vance's NOVA folds at the knees, venting coolant like a dying breath. The crowd that paid to watch you fall "
-        "goes silent.",
-        "You walk to the cockpit. The mask cracks. Beneath it is only a tired figure wearing your blood's old squadron "
-        "pin.",
-        "\"We flew together,\" Vance rasps. \"Your kin wanted to expose the fixers. I wanted to own them. One of us had "
-        "to fall first.\"",
-        "You do not strike. You take the pin. \"They fell forward,\" you say. \"You only fell.\"",
-        "By dawn you have broadcast the Concord's ledgers to every network -- the bribes, the vanished pilots, the "
-        "buried names.",
-        "But the ledger names a patron above Vance. A signature half-remembered from old letters. A debt unpaid since "
-        "2097.",
-        "You seal the pin into your own cockpit. The revenge is finished. The reckoning has only begun, ~1.",
+        "Vance's NOVA drops to one knee, venting coolant like a last breath. The crowd that paid to watch you die goes "
+        "silent, ~1.",
+        "You climb to the cockpit and tear the mask away. Beneath it: a tired old pilot -- wearing your father's "
+        "squadron pin.",
+        "\"We flew together,\" Vance rasps. \"Your father wanted to expose the fixers. I wanted to own them. One of us "
+        "had to fall.\"",
+        "You do not strike. You take the pin from his collar. \"My father fell forward,\" you say. \"You just fell.\"",
+        "By dawn you broadcast the Concord's ledgers to every feed -- the bribes, the vanished pilots, the buried "
+        "names. Your father's is cleared first.",
+        "But the ledger names a patron above Vance -- a signature your father cursed in his last letters. A debt "
+        "unpaid since the old war.",
+        "You seal the pin into your cockpit, over the throttle where his hand once rested. The revenge is finished, "
+        "~1. The reckoning has only begun.",
     };
     set_story(&trn, story, (int)(sizeof(story) / sizeof(story[0])));
 
@@ -355,42 +377,57 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         return 1;
 
     trn.tournament_id = 12;
-    sd_tournament_set_pic_name(&trn, "WORLD.PIC"); // real classic-pilot faces
+    // Reuse the same portrait PIC as Nightshade so the recast pilots keep their
+    // faces and Vance keeps the new original portrait; Kreissack uses a real
+    // WORLD.PIC face index that still exists in the extended copy.
+    sd_tournament_set_pic_name(&trn, "NIGHTSHD.PIC");
     // The hardest gauntlet -- sits at the top of the progression.
     trn.registration_fee = 25000;
     trn.assumed_initial_value = 90000;
     trn.winnings_multiplier = 1.8f;
 
-    // Same Concord names -- new, deadlier prototype mechs. Stats are a notch
-    // above Nightshade but still capped within the World Championship envelope
+    // Same Concord names -- new, deadlier prototype mechs -- ordered BOSS-FIRST
+    // (roster[0] = Kreissack = rank 1 = fought last). Stats are a notch above
+    // Nightshade but still capped within the World Championship envelope
     // (arm_power <= 6, boss <= 7; difficulty <= 2) so it stays beatable.
+    //
+    // Raven flies ELECTRA here (not NOVA) so Kreissack's green NOVA stays the
+    // unique "machine in a green machine" reveal and no two fighters share it.
     static const enemy_spec roster[] = {
-        {"Milano", PILOT_MILANO, 17, HAR_CHRONOS, 1, 16, 20, 13, 3, 3, 6, 6, 4, 3, 9, 0, 0,
-         "You scattered us, ~1. The patron rebuilt us in steel you've never seen. Too late now."},
-        {"Cossette", PILOT_COSSETTE, 27, HAR_FLAIL, 1, 17, 12, 14, 4, 4, 4, 4, 4, 4, 8, 0, 0,
-         "I mourned the Concord. Then the patron gave me a reason -- and a heavier flail."},
-        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_PYROS, 1, 18, 11, 15, 4, 4, 5, 5, 5, 4, 7, 0, 0,
-         "Names are cheap, ~1. The patron deals in legacies older than your blood's grave."},
-        {"Angel", PILOT_ANGEL, 29, HAR_KATANA, 1, 18, 14, 15, 5, 4, 5, 5, 5, 4, 6, 0, 0,
-         "Last time I burned. This time I cut. I begged you to walk away, ~1. Now I carve."},
-        {"Christian", PILOT_CHRISTIAN, 9, HAR_GARGOYLE, 2, 20, 6, 18, 5, 4, 3, 3, 6, 6, 5, 0, 0,
-         "The wall got taller. The patron forged me from war-iron. Break yourself on me, ~1."},
+        {"Kreissack", PILOT_CRYSTAL, 34, HAR_NOVA, 2, 28, 16, 24, 7, 6, 6, 6, 7, 7, 1, 0, 0,
+         "Children always hunt the hand behind the knife, ~1. I am that hand. I made your father a legend -- then a "
+         "corpse. Your turn."},
+        {"Vance", PILOT_STEFFAN, VANCE_PHOTO_ID, HAR_SHADOW, 2, 24, 18, 20, 6, 6, 6, 6, 6, 6, 2, 0, 0,
+         "I lived, ~1. The patron stitched me back from the wreck you made. Beat me and mean it -- it is the only way "
+         "to free us both."},
+        {"Raven", PILOT_RAVEN, 6, HAR_ELECTRA, 2, 24, 16, 18, 6, 5, 6, 6, 6, 6, 3, 0, 0,
+         "Kreissack pays me to notice things, ~1 -- like the pin on your jacket. Electra will burn that keepsake off "
+         "your chest."},
         {"Shirro", PILOT_SHIRRO, 22, HAR_THORN, 2, 22, 8, 18, 5, 5, 4, 4, 6, 5, 4, 0, 0,
-         "Vance ruled shadows. The patron is a god of the old war. You woke something, ~1."},
-        {"Raven", PILOT_RAVEN, 6, HAR_NOVA, 2, 24, 16, 18, 6, 5, 6, 6, 6, 6, 3, 0, 0,
-         "I feared for Vance. I am certain for the patron. Your blood's name is in his ledger twice."},
-        {"Vance", PILOT_STEFFAN, 7, HAR_SHADOW, 2, 24, 18, 20, 6, 6, 6, 6, 6, 6, 2, 0, 0,
-         "I lived, ~1. The patron stitched me from the wreck you made. Win, and free us both."},
-        {"Kreissack", PILOT_CRYSTAL, 34, HAR_NOVA, 2, 28, 16, 24, 7, 6, 6, 6, 7, 7, 1, 1, 2,
-         "Children always hunt the hand behind the knife. I am that hand. I made your blood a legend, "
-         "then a corpse, ~1."},
+         "I flew beside the old champion once, ~1. You have his stance and none of his patience. Thorn will show you "
+         "the difference."},
+        {"Christian", PILOT_CHRISTIAN, 9, HAR_GARGOYLE, 2, 20, 6, 18, 5, 4, 3, 3, 6, 6, 5, 0, 0,
+         "Gargoyle has broken challengers with better reasons than yours, ~1. Grief makes a heavy fist -- and a slow "
+         "one."},
+        {"Angel", PILOT_ANGEL, 29, HAR_KATANA, 1, 18, 14, 15, 5, 4, 5, 5, 5, 4, 6, 0, 0,
+         "They whisper your name in the lower brackets, ~1. Katana will teach them a shorter word for you: "
+         "finished."},
+        {"Jean-Paul", PILOT_JEANPAUL, 24, HAR_PYROS, 1, 18, 11, 15, 4, 4, 5, 5, 5, 4, 7, 0, 0,
+         "The Iron Reckoning burns the sentimental first, ~1. Whatever memory drives you, Pyros renders it to smoke "
+         "and slag."},
+        {"Cossette", PILOT_COSSETTE, 27, HAR_FLAIL, 1, 17, 12, 14, 4, 4, 4, 4, 4, 4, 8, 0, 0,
+         "Flail does not cut clean, ~1 -- it batters until nothing pretty is left. Walk away and keep the face you "
+         "came in with."},
+        {"Milano", PILOT_MILANO, 17, HAR_CHRONOS, 1, 16, 20, 13, 3, 3, 6, 6, 4, 3, 9, 0, 0,
+         "Time favors the patient, ~1. I have clocked a hundred rookies with that hungry look. Chronos will not slow "
+         "for you."},
     };
     build_roster(&trn, roster, (int)(sizeof(roster) / sizeof(roster[0])));
 
     finalize_locale(&trn, "Iron Reckoning",
-                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}The Concord's patron survives -- a financier in a green "
-                    "machine. The survivors return in deadlier mechs. The circuit's hardest gauntlet, for proven "
-                    "champions. Entry: 25,000cr.");
+                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}The Concord's patron survives -- Kreissack, an old-war "
+                    "financier in a green machine. His survivors return in prototype iron. Finish what your father "
+                    "started. Entry: 25,000cr.");
 
     if(art_dir) {
         char logo[512];
@@ -399,16 +436,20 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
     }
 
     static const char *const story[] = {
-        "The ancient NOVA -- repainted Concord green -- finally stops moving. Kreissack's reactor goes dark for the "
-        "last time.",
-        "On every feed, the patron's web of fixers and silent partners scatters like roaches under sudden light.",
-        "Vance pulls you from your smoking cockpit instead of finishing you. \"He's gone,\" he says. \"I belong to no "
-        "one now.\"",
-        "You study the one who killed your blood, and the prisoner the patron made of him, and can no longer tell them "
-        "apart.",
-        "\"Rebuild it clean,\" you tell him, and press your blood's pin into his hand. \"A circuit with no shadows.\"",
-        "You walk out of the arena and do not look back. The reckoning is paid. The iron is quiet.",
-        "Somewhere a child watches and learns the name ~1 -- the one who fought for the dead, then let the living go.",
+        "Nova drops to one knee and does not rise. Smoke curls from Kreissack's cockpit. The arena that roared his "
+        "name for twenty years goes silent.",
+        "Kreissack crawls from the wreck. \"Your father knelt too,\" he rasps. \"Right before I signed the order.\" "
+        "The confession echoes off ten thousand held breaths.",
+        "You step past him. The stewards will have him now -- the courts after that. Vengeance was the easy sentence. "
+        "You choose the one that lasts.",
+        "Vance waits at the gate, his control collar dark since Nova fell. Kreissack's puppet, cut loose. He does not "
+        "run. He kneels and offers you his knife, handle first.",
+        "You close his fingers around something smaller -- your father's squadron pin, the enamel worn soft by two "
+        "lifetimes of thumbs. \"Rebuild the circuit clean,\" you tell him.",
+        "Vance stares at the pin like it might burn him. Then he stands, fixes it over his heart, and walks toward the "
+        "officials' tower -- the first honest step of the Reckoning.",
+        "In the emptying stands a child tugs a parent's sleeve and points at you. \"Who is that?\" The answer travels "
+        "down the rows like a current: \"~1. That's ~1.\"",
     };
     set_story(&trn, story, (int)(sizeof(story) / sizeof(story[0])));
 

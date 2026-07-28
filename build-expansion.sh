@@ -14,12 +14,36 @@ SAVE_DIR="$HOME/Library/Application Support/OpenOMF/save"
 
 # Build the expansion tools.
 cmake -DBUILD_EXPANSION=ON -S . -B build >/dev/null
-cmake --build build --target expansion_gen mkpilot
+cmake --build build --target expansion_gen mkpilot mkportrait
 
 # 1. Regenerate the indexed logo art (if Pillow + raw banners present).
 if [ -f expansion-art/nightshade_raw.png ]; then
     python3 expansion-art/quantize_logo.py expansion-art >/dev/null || \
         echo "(logo quantize skipped -- install Pillow to regenerate art)"
+fi
+
+# 1b. Regenerate the new original Vance portrait and inject it into a copy of
+#     WORLD.PIC (-> NIGHTSHD.PIC), which the tournaments reference for faces.
+if [ -f expansion-art/vance_raw.png ]; then
+    python3 expansion-art/quantize_portrait.py expansion-art >/dev/null || \
+        echo "(portrait quantize skipped -- install Pillow to regenerate the Vance face)"
+fi
+INJECTED_VANCE=0
+if [ -f expansion-art/vance_portrait.vph ] && [ -f build/resources/WORLD.PIC ]; then
+    if ./build/mkportrait build/resources/WORLD.PIC expansion-art/vance_portrait.vph \
+        build/resources/NIGHTSHD.PIC; then
+        echo "Injected new Vance portrait -> build/resources/NIGHTSHD.PIC"
+        INJECTED_VANCE=1
+    else
+        echo "(Vance portrait injection failed -- falling back to WORLD.PIC faces)"
+    fi
+fi
+# Guarantee the tournaments' portrait PIC always exists: if injection was skipped
+# or failed, use a plain copy of WORLD.PIC so faces still resolve (Vance shows a
+# placeholder face instead of crashing).
+if [ "$INJECTED_VANCE" -eq 0 ] && [ -f build/resources/WORLD.PIC ]; then
+    cp build/resources/WORLD.PIC build/resources/NIGHTSHD.PIC
+    echo "(using WORLD.PIC copy as NIGHTSHD.PIC -- run with Pillow to bake the Vance portrait)"
 fi
 
 # 2. Generate the tournaments (originals as binary templates + our logos).
