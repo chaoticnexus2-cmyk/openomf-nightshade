@@ -93,17 +93,32 @@ def _quantize_to_fixed(image, ref_palette):
     Returns:
         (palette_flat_144, indices) where indices are 0 (clear) or 1..47.
     """
-    # Build a PIL palette image seeded with the reference colours so PIL remaps
-    # to the nearest reference entry. Only entries 1..47 are drawable.
-    pal_img = Image.new("P", (1, 1))
-    # PIL palettes are 256 entries; fill 0..47 from the reference, pad the rest.
-    full = list(ref_palette[: 48 * 3])
-    full += [0, 0, 0] * (256 - 48)
-    pal_img.putpalette(full)
+    # PIL will map to ANY of the 256 palette slots, but only indices 1..47 are
+    # drawable portrait colours. So we build a working palette whose 256 slots
+    # are filled ONLY with the 47 usable reference colours (entry 0 excluded and
+    # the 47 colours tiled across the rest), forcing every mapped index into a
+    # value we can translate back to 1..47.
+    usable = []  # list of (r,g,b) for reference indices 1..47
+    for i in range(1, 48):
+        usable.append((ref_palette[i * 3], ref_palette[i * 3 + 1], ref_palette[i * 3 + 2]))
 
-    # Quantize the source onto that fixed palette.
+    # Fill a 256-entry PIL palette by repeating the usable colours; remember which
+    # reference index (1..47) each PIL slot corresponds to.
+    slot_to_refidx = []
+    flat = []
+    for slot in range(256):
+        ref_idx = 1 + (slot % 47)
+        color = usable[ref_idx - 1]
+        flat += [color[0], color[1], color[2]]
+        slot_to_refidx.append(ref_idx)
+
+    pal_img = Image.new("P", (1, 1))
+    pal_img.putpalette(flat)
+
     quantized = image.quantize(palette=pal_img, dither=Image.Dither.NONE)
-    return list(ref_palette[: 48 * 3]), list(quantized.getdata())
+    # Translate PIL slot indices back to reference indices 1..47.
+    remapped = [slot_to_refidx[slot] for slot in quantized.getdata()]
+    return list(ref_palette[: 48 * 3]), remapped
 
 
 def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H, ref_palette=None):
@@ -131,14 +146,12 @@ def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H, ref_pa
 
     if ref_palette is not None:
         # Fixed-palette mode: remap onto the engine's shared portrait palette so
-        # the face renders correctly against the mechlab/VS palette.
+        # the face renders correctly against the mechlab/VS palette. src_indices
+        # are already final reference indices in 1..47.
         palette, src_indices = _quantize_to_fixed(image, ref_palette)
         indices = []
-        for pixel_index, alpha_value in zip(src_indices, alpha_px):
-            if alpha_value < 128 or pixel_index == 0:
-                indices.append(0)  # transparent (avoid index 0, which is ignored)
-            else:
-                indices.append(pixel_index)
+        for ref_index, alpha_value in zip(src_indices, alpha_px):
+            indices.append(0 if alpha_value < 128 else ref_index)
     else:
         # Legacy independent-palette mode (kept for the single-portrait pipeline).
         quantized = image.quantize(colors=MAX_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)

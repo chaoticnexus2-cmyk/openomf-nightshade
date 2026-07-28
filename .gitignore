@@ -19,6 +19,11 @@ cmake-build-release/
 compile_commands.json
 __pycache__
 *.pyc
+
+# Throwaway portrait/preview debugging artifacts
+expansion-art/preview_*.png
+expansion-art/_*.py
+expansion-art/*_preview.png
 test.af
 test.bk
 test.trn
