@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Convert a raw RGB antagonist portrait into an engine-ready indexed portrait
-for an OpenOMF PIC photo (the new original "Vance" face).
+"""Convert the raw RGB antagonist portraits into engine-ready indexed portraits
+for OpenOMF PIC photos (the original Nightshade Concord cast). Run with the
+expansion-art dir to batch-convert every portraits/<stem>.png into a .vph.
 
 OMF pilot portraits are paletted sprites: each PIC photo carries its own palette
 of 48 colours (indices 0..47), and sprite index 0 is the transparent background
@@ -61,7 +62,51 @@ def _build_alpha(rgb_img, key_color, tolerance=48):
     return alpha
 
 
-def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H):
+def _load_ref_palette(pal_path):
+    """Load a raw 48*3 RGB reference palette (from dump_pic_palette.py).
+
+    Returns a flat list of 144 ints, or None if the file is absent.
+    """
+    from pathlib import Path
+
+    path = Path(pal_path)
+    if not path.exists():
+        return None
+    raw = path.read_bytes()
+    if len(raw) < 48 * 3:
+        return None
+    return list(raw[: 48 * 3])
+
+
+def _quantize_to_fixed(image, ref_palette):
+    """Remap an RGB image onto a fixed reference palette (indices 1..47).
+
+    The engine draws every portrait on a screen against ONE shared palette
+    (player-0's, loaded into VGA indices 1..47). Portraits must therefore use
+    that exact palette, not a private per-image one, or they render as garbled
+    colour noise. Index 0 stays reserved for transparency.
+
+    Args:
+        image: RGB PIL image at portrait size.
+        ref_palette: flat [r,g,b,...] of 48 entries; entries 1..47 are usable.
+
+    Returns:
+        (palette_flat_144, indices) where indices are 0 (clear) or 1..47.
+    """
+    # Build a PIL palette image seeded with the reference colours so PIL remaps
+    # to the nearest reference entry. Only entries 1..47 are drawable.
+    pal_img = Image.new("P", (1, 1))
+    # PIL palettes are 256 entries; fill 0..47 from the reference, pad the rest.
+    full = list(ref_palette[: 48 * 3])
+    full += [0, 0, 0] * (256 - 48)
+    pal_img.putpalette(full)
+
+    # Quantize the source onto that fixed palette.
+    quantized = image.quantize(palette=pal_img, dither=Image.Dither.NONE)
+    return list(ref_palette[: 48 * 3]), list(quantized.getdata())
+
+
+def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H, ref_palette=None):
     """Quantize an RGB portrait into a raw indexed .vph for the PIC injector."""
     image = Image.open(src_path).convert("RGB")
     width, height = image.size
@@ -82,34 +127,38 @@ def make_portrait(src_path, dst_path, out_w=PORTRAIT_W, out_h=PORTRAIT_H):
 
     key_color = _bg_key_color(image)
     alpha = _build_alpha(image, key_color)
-
-    # Quantize foreground to <=47 colours, then shift indices up by one so index
-    # 0 stays free for the transparent background.
-    quantized = image.quantize(colors=MAX_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-    flat_palette = quantized.getpalette()[: MAX_COLORS * 3]
-    src_indices = list(quantized.getdata())
     alpha_px = list(alpha.getdata())
 
-    # Palette entry 0 = transparent key colour; foreground colours move to 1..47.
-    palette = [key_color[0], key_color[1], key_color[2]]
-    palette += flat_palette
-    while len(palette) < 48 * 3:
-        palette += [0, 0, 0]
-    palette = palette[: 48 * 3]
-
-    indices = []
-    for pixel_index, alpha_value in zip(src_indices, alpha_px):
-        if alpha_value < 128:
-            indices.append(0)
-        else:
-            indices.append(pixel_index + 1)
+    if ref_palette is not None:
+        # Fixed-palette mode: remap onto the engine's shared portrait palette so
+        # the face renders correctly against the mechlab/VS palette.
+        palette, src_indices = _quantize_to_fixed(image, ref_palette)
+        indices = []
+        for pixel_index, alpha_value in zip(src_indices, alpha_px):
+            if alpha_value < 128 or pixel_index == 0:
+                indices.append(0)  # transparent (avoid index 0, which is ignored)
+            else:
+                indices.append(pixel_index)
+    else:
+        # Legacy independent-palette mode (kept for the single-portrait pipeline).
+        quantized = image.quantize(colors=MAX_COLORS, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+        flat_palette = quantized.getpalette()[: MAX_COLORS * 3]
+        src_indices = list(quantized.getdata())
+        palette = [key_color[0], key_color[1], key_color[2]]
+        palette += flat_palette
+        while len(palette) < 48 * 3:
+            palette += [0, 0, 0]
+        palette = palette[: 48 * 3]
+        indices = []
+        for pixel_index, alpha_value in zip(src_indices, alpha_px):
+            indices.append(0 if alpha_value < 128 else pixel_index + 1)
 
     with open(dst_path, "wb") as handle:
         handle.write(struct.pack("<HH", out_w, out_h))
         handle.write(bytes(palette))
         handle.write(bytes(indices))
 
-    print(f"wrote {dst_path} ({out_w}x{out_h}, <=47 colours, index0=transparent)")
+    print(f"wrote {dst_path} ({out_w}x{out_h}, index0=transparent)")
 
 
 # The original Nightshade Concord cast, matching enum concord_face in
@@ -131,6 +180,10 @@ CONCORD_STEMS = [
 def make_all(base_dir):
     """Quantize every Concord portrait PNG into a sibling .vph.
 
+    All faces are remapped onto a single shared reference palette
+    (expansion-art/players_ref.pal, extracted from PLAYERS.PIC) because the
+    engine renders every portrait on a screen against one shared palette.
+
     Args:
         base_dir: The expansion-art directory (contains a portraits/ subfolder).
 
@@ -139,7 +192,13 @@ def make_all(base_dir):
     """
     from pathlib import Path
 
-    portraits_dir = Path(base_dir) / "portraits"
+    base = Path(base_dir)
+    ref_palette = _load_ref_palette(base / "players_ref.pal")
+    if ref_palette is None:
+        print("WARNING: players_ref.pal not found; portraits will use private "
+              "palettes and may render garbled in-game.")
+
+    portraits_dir = base / "portraits"
     written = []
     for stem in CONCORD_STEMS:
         src = portraits_dir / f"{stem}.png"
@@ -147,7 +206,7 @@ def make_all(base_dir):
         if not src.exists():
             print(f"  (skip {stem}: {src} not found)")
             continue
-        make_portrait(str(src), str(dst))
+        make_portrait(str(src), str(dst), ref_palette=ref_palette)
         written.append(str(dst))
     return written
 

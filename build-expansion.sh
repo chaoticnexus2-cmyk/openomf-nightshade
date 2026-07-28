@@ -22,28 +22,30 @@ if [ -f expansion-art/nightshade_raw.png ]; then
         echo "(logo quantize skipped -- install Pillow to regenerate art)"
 fi
 
-# 1b. Regenerate the new original Vance portrait and inject it into a copy of
-#     WORLD.PIC (-> NIGHTSHD.PIC), which the tournaments reference for faces.
-if [ -f expansion-art/vance_raw.png ]; then
+# 1b. Regenerate the original Nightshade Concord cast portraits (one .vph per
+#     masked enforcer) and inject them into a copy of WORLD.PIC (-> NIGHTSHD.PIC),
+#     which both tournaments reference for their faces. None reuse a base-game
+#     face; each is a hand-generated original portrait.
+if [ -d expansion-art/portraits ]; then
     python3 expansion-art/quantize_portrait.py expansion-art >/dev/null || \
-        echo "(portrait quantize skipped -- install Pillow to regenerate the Vance face)"
+        echo "(portrait quantize skipped -- install Pillow to regenerate the cast faces)"
 fi
-INJECTED_VANCE=0
-if [ -f expansion-art/vance_portrait.vph ] && [ -f build/resources/WORLD.PIC ]; then
-    if ./build/mkportrait build/resources/WORLD.PIC expansion-art/vance_portrait.vph \
+INJECTED_CAST=0
+if [ -d expansion-art/portraits ] && [ -f build/resources/WORLD.PIC ]; then
+    if ./build/mkportrait build/resources/WORLD.PIC expansion-art/portraits \
         build/resources/NIGHTSHD.PIC; then
-        echo "Injected new Vance portrait -> build/resources/NIGHTSHD.PIC"
-        INJECTED_VANCE=1
+        echo "Injected original Concord cast portraits -> build/resources/NIGHTSHD.PIC"
+        INJECTED_CAST=1
     else
-        echo "(Vance portrait injection failed -- falling back to WORLD.PIC faces)"
+        echo "(cast portrait injection failed -- falling back to WORLD.PIC faces)"
     fi
 fi
 # Guarantee the tournaments' portrait PIC always exists: if injection was skipped
-# or failed, use a plain copy of WORLD.PIC so faces still resolve (Vance shows a
-# placeholder face instead of crashing).
-if [ "$INJECTED_VANCE" -eq 0 ] && [ -f build/resources/WORLD.PIC ]; then
+# or failed, use a plain copy of WORLD.PIC so faces still resolve (the cast shows
+# placeholder faces instead of crashing).
+if [ "$INJECTED_CAST" -eq 0 ] && [ -f build/resources/WORLD.PIC ]; then
     cp build/resources/WORLD.PIC build/resources/NIGHTSHD.PIC
-    echo "(using WORLD.PIC copy as NIGHTSHD.PIC -- run with Pillow to bake the Vance portrait)"
+    echo "(using WORLD.PIC copy as NIGHTSHD.PIC -- run with Pillow to bake the cast portraits)"
 fi
 
 # 2. Generate the tournaments (originals as binary templates + our logos).

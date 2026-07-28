@@ -66,13 +66,16 @@ engine tweaks (documented in [CHANGES.md](CHANGES.md)).
 
 ## 🎬 The story
 
-> A mentor murdered. A medal returned in an unmarked box. Beneath the legitimate
-> circuit festers a fight-cult that rigs arenas and collects pilots — and it
-> answers to a masked king.
+> Your father — the champion who taught you the ring — vanished after refusing a
+> masked syndicate that quietly decides every winner. Beneath the legitimate
+> circuit festers the **Nightshade Concord**: it rigs arenas, collects pilots,
+> and buries the ones who say no in graves with no names.
 
-You are a pilot hunting the people who killed the one who trained you. The plot
-unfolds **across the fights**: each opponent's pre-fight taunt drops another
-clue, and a multi-page victory cutscene pays it off.
+You are a pilot hunting the people who killed your father. The plot unfolds
+**across the fights**: each opponent's pre-fight taunt drops another clue, and a
+multi-page victory cutscene pays it off. Every line is second-person and
+gender-neutral, and the engine substitutes your chosen pilot name — so the hero
+is **you**, by whatever name you pick.
 
 ### Tournament I — *Nightshade Concord*
 <div align="center">
@@ -81,9 +84,9 @@ clue, and a multi-page victory cutscene pays it off.
 
 </div>
 
-Infiltrate the **Nightshade Concord** and climb through its enforcers to reach
-the masked leader, **Vance**, and learn who really ordered the killing.
-**Entry fee: 15,000 cr.**
+Infiltrate the **Nightshade Concord** and climb through its masked enforcers to
+reach **the Cardinal**, the syndicate's magistrate — and learn who really
+ordered your father's death. **Entry fee: 15,000 cr.**
 
 ### Tournament II — *Iron Reckoning*
 <div align="center">
@@ -92,10 +95,11 @@ the masked leader, **Vance**, and learn who really ordered the killing.
 
 </div>
 
-The Concord is broken, but its **patron** survives — a financier "in a green
-machine" who bankrolled every shadow you cut down. The survivors return in
-deadlier prototype mechs for the circuit's hardest gauntlet, and a hidden hand
-tied to the original game's legacy waits at the end. **Entry fee: 25,000 cr.**
+The Concord is broken, but the hand that built it survives: **the Meridian**, an
+old-war arms architect who turned the ring into a market. His survivors return
+in deadlier prototype mechs to guard him, for the circuit's hardest gauntlet —
+and the revenge you came for finally matures into justice. **Entry fee:
+25,000 cr.**
 
 Both tournaments are tuned to the **post-World-Championship** power band: hard,
 but fair for an upgraded HAR.
@@ -104,26 +108,28 @@ but fair for an upgraded HAR.
 
 ## 🤖 The fighters
 
-The conspiracy is staffed by the pilots you know — each one re-imagined as a
-Concord member, escalating toward the boss.
+An **original masked cast** — a fight-cult of enforcers, each with a
+hand-generated portrait (none reused from the base game), escalating toward the
+boss. Behind the masks the engine still uses the classic pilot AI profiles, so
+they *feel* like OMF veterans.
 
-**Nightshade Concord** (in fighting order):
+**Nightshade Concord** (in fighting order — the boss is fought last):
 
-| # | Pilot | Mech (HAR) | Role |
-|---|-------|-----------|------|
-| 1 | Cossette | Katana | Initiate |
-| 2 | Milano | Jaguar | Runner |
-| 3 | Jean-Paul | Electra | Collector |
-| 4 | Christian | Thorn | Enforcer |
-| 5 | Angel | Pyros | True believer |
-| 6 | Ibrahim | Gargoyle | The Mountain |
-| 7 | Shirro | Shredder | The Hand |
-| 8 | Raven | Shadow | The Whisper |
-| ★ | **Vance** | Nova | **Masked leader** (gated boss) |
+| # | Enforcer | Mech (HAR) | Role |
+|---|----------|-----------|------|
+| 1 | Sparrow | Chronos | Hungry rookie prospect |
+| 2 | Wager | Jaguar | Match-fixing gambler |
+| 3 | Vesper | Electra | Spymaster |
+| 4 | Seraph | Katana | Zealot |
+| 5 | Cinder | Pyros | Pyromaniac |
+| 6 | Bastion | Gargoyle | The wall |
+| 7 | Marrow | Shredder | Combat-surgeon |
+| 8 | Requiem | Shadow | Silent executioner |
+| ★ | **The Cardinal** | Nova | **Masked magistrate** (final boss) |
 
-**Iron Reckoning** brings the same names back in new, deadlier mechs (Chronos,
-Flail, Pyros, Katana, Gargoyle, Thorn, Nova, Shadow…) and ends with a secret
-patron as the final boss.
+**Iron Reckoning** brings the same cast back in deadlier prototype mechs and
+ends with **the Meridian** — the old-war architect who bankrolled it all — as
+the final boss.
 
 ---
 

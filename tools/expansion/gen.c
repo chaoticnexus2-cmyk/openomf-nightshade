@@ -287,10 +287,9 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
         return 1;
 
     // Keep NORTH_AM.BK cutscene from the template. Use NIGHTSHD.PIC for portraits:
-    // it is a copy of WORLD.PIC with a brand-new hand-generated Vance face appended
-    // (see tools/expansion/mkportrait.c). Each recast classic pilot still shows a
-    // real OMF face; only Vance uses the new original portrait at photo index
-    // VANCE_PHOTO_ID.
+    // it is a copy of WORLD.PIC with the original Nightshade Concord faces appended
+    // (see tools/expansion/mkportrait.c). Every enemy points at a hand-generated
+    // original portrait (enum concord_face in vance.h) -- none reuse a base face.
     sd_tournament_set_pic_name(&trn, "NIGHTSHD.PIC");
     trn.tournament_id = 11; // not 4 (4 = World Championship special-case)
     // Post-World-Championship content: fee/value sit just above WORLD (10000/58000).
@@ -298,35 +297,29 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     trn.assumed_initial_value = 70000;
     trn.winnings_multiplier = 1.5f;
 
-    // Concord enforcers, ordered BOSS-FIRST (roster[0] = rank 1 = fought last).
-    // See the enemy_spec ordering note above. Stats are tuned to the World
-    // Championship envelope (arm_power <= 6, boss <= 7, difficulty <= 2) so the
-    // pack is challenging for a post-World pilot but never one-hit-kills.
-    //
-    // photo_id VANCE_PHOTO_ID points at the new original Vance portrait in
-    // NIGHTSHD.PIC; every other pilot keeps a real WORLD.PIC face index.
     // The Nightshade Concord -- an original cast of masked fight-cult enforcers,
-    // ordered BOSS-FIRST (roster[0] = The Cardinal = rank 1 = fought last).
-    // Each photo_id points at a hand-generated original face in NIGHTSHD.PIC
-    // (see enum concord_face in vance.h). Stats stay inside the World envelope
-    // (arm_power <= 6, boss <= 7, difficulty <= 2) so it is hard but fair.
+    // ordered BOSS-FIRST (roster[0] = The Cardinal = rank 1 = fought last; see the
+    // enemy_spec ordering note above). Each photo_id points at a hand-generated
+    // original face in NIGHTSHD.PIC (see enum concord_face in vance.h). Stats stay
+    // inside the World Championship envelope (arm_power <= 6, boss <= 7,
+    // difficulty <= 2) so it is challenging for a post-World pilot but fair.
     static const enemy_spec roster[] = {
         {"The Cardinal", PILOT_STEFFAN, FACE_CARDINAL, HAR_NOVA, 2, 26, 16, 22, 6, 6, 6, 6, 6, 6, 1, 0, 0,
-         "I am the Cardinal. Your mentor saw our faces and chose silence over life, ~1. Kneel, and I will let you "
+         "I am the Cardinal. Your father saw our faces and chose silence over life, ~1. Kneel, and I will let you "
          "keep your eyes."},
         {"Requiem", PILOT_RAVEN, FACE_REQUIEM, HAR_SHADOW, 2, 22, 16, 18, 5, 5, 6, 6, 5, 5, 2, 0, 0,
-         "I do not gloat, ~1. I keep count. Your mentor was one hundred and nine. You will not get your own number."},
+         "I do not gloat, ~1. I keep count. Your father was one hundred and nine. You will not get your own number."},
         {"Marrow", PILOT_SHIRRO, FACE_MARROW, HAR_SHREDDER, 2, 22, 8, 18, 5, 5, 4, 4, 5, 5, 3, 0, 0,
-         "I opened your mentor to see what a hero is made of, ~1. Just meat and stubbornness. Hold still -- this is "
+         "I opened your father to see what a hero is made of, ~1. Just meat and stubbornness. Hold still -- this is "
          "research."},
         {"Bastion", PILOT_IBRAHIM, FACE_BASTION, HAR_GARGOYLE, 1, 20, 6, 20, 5, 5, 3, 3, 6, 6, 4, 0, 0,
          "I am the wall the Concord stands behind, ~1. Everyone who reached for the truth broke on me. Reach."},
         {"Cinder", PILOT_ANGEL, FACE_CINDER, HAR_PYROS, 1, 18, 12, 15, 4, 4, 4, 4, 5, 4, 5, 0, 0,
-         "They pay me in screams and firelight, ~1. Your mentor burned quiet. Let us hear if you are louder."},
+         "They pay me in screams and firelight, ~1. Your father burned quiet. Let us hear if you are louder."},
         {"Seraph", PILOT_CHRISTIAN, FACE_SERAPH, HAR_KATANA, 1, 18, 8, 16, 4, 3, 3, 3, 5, 4, 6, 0, 0,
          "The Concord is the true order of the ring, ~1. Your grief is a prayer to the wrong god. Let me correct it."},
         {"Vesper", PILOT_JEANPAUL, FACE_VESPER, HAR_ELECTRA, 0, 17, 11, 14, 3, 3, 4, 4, 4, 3, 7, 0, 0,
-         "I sold them the coordinates that killed your mentor, ~1. You walked in wearing that grudge like a badge. I "
+         "I sold them the coordinates that killed your father, ~1. You walked in wearing that grudge like a badge. I "
          "see everything."},
         {"Wager", PILOT_MILANO, FACE_WAGER, HAR_JAGUAR, 0, 15, 18, 12, 2, 2, 5, 5, 3, 2, 8, 0, 0,
          "I already booked the odds on you, ~1 -- forty to one, dead by round two. Do not make a liar of me... or do. "
@@ -338,7 +331,7 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     build_roster(&trn, roster, (int)(sizeof(roster) / sizeof(roster[0])));
 
     finalize_locale(&trn, "Nightshade Concord",
-                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}Your mentor -- the pilot who taught you the ring -- "
+                    "{WIDTH 276}{CENTER 160}{VMOVE 72}{COLOR 6}Your father -- the champion who taught you the ring -- "
                     "vanished after refusing the Nightshade Concord, the masked syndicate that quietly decides every "
                     "champion. Climb their enforcers to the Cardinal. Entry: 15,000cr.");
 
@@ -356,17 +349,17 @@ static int gen_nightshade(const char *resource_dir, const char *out_dir, const c
     static const char *const story[] = {
         "The Cardinal's NOVA folds to one knee, venting coolant like a last breath. The crowd that paid to watch you "
         "die goes silent, ~1.",
-        "You climb to the cockpit and pull the bone-white mask free. Beneath it: a face from your mentor's old squad "
+        "You climb to the cockpit and pull the bone-white mask free. Beneath it: a face from your father's old squad "
         "photos -- a friend who chose the Concord.",
         "\"We built this to end the wars,\" the Cardinal rasps. \"Then we learned it was easier to own the ring than "
-        "to save it. Your mentor wouldn't look away.\"",
+        "to save it. Your father wouldn't look away.\"",
         "You do not strike. You take the Concord signet from the collar -- proof, names, dates. \"You buried a "
         "witness,\" you say. \"I'm the receipt.\"",
         "By dawn you broadcast the Concord's ledgers to every feed: the fixed bouts, the vanished pilots, the graves "
-        "with no names. Your mentor's is the first cleared.",
+        "with no names. Your father's is the first cleared.",
         "But every order in the ledger routes upward, to one unsigned hand -- an old-war architect the Cardinal only "
         "calls the Meridian.",
-        "You seal the signet into your cockpit, over the throttle where a better pilot's hand once rested. The "
+        "You seal the signet into your cockpit, over the throttle where your father's hand once rested. The "
         "syndicate is exposed, ~1. The reckoning has only begun.",
     };
     set_story(&trn, story, (int)(sizeof(story) / sizeof(story[0])));
@@ -385,30 +378,24 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         return 1;
 
     trn.tournament_id = 12;
-    // Reuse the same portrait PIC as Nightshade so the recast pilots keep their
-    // faces and Vance keeps the new original portrait; Kreissack uses a real
-    // WORLD.PIC face index that still exists in the extended copy.
+    // Reuse the same portrait PIC as Nightshade so the returning cast keep their
+    // original faces; the Meridian uses its own appended portrait (FACE_MERIDIAN).
     sd_tournament_set_pic_name(&trn, "NIGHTSHD.PIC");
     // The hardest gauntlet -- sits at the top of the progression.
     trn.registration_fee = 25000;
     trn.assumed_initial_value = 90000;
     trn.winnings_multiplier = 1.8f;
 
-    // Same Concord names -- new, deadlier prototype mechs -- ordered BOSS-FIRST
-    // (roster[0] = Kreissack = rank 1 = fought last). Stats are a notch above
-    // Nightshade but still capped within the World Championship envelope
-    // (arm_power <= 6, boss <= 7; difficulty <= 2) so it stays beatable.
-    //
-    // Raven flies ELECTRA here (not NOVA) so Kreissack's green NOVA stays the
-    // unique "machine in a green machine" reveal and no two fighters share it.
     // Same original cast -- deadlier prototype mechs -- ordered BOSS-FIRST
-    // (roster[0] = Meridian, the true architect = rank 1 = fought last). Faces
-    // reuse the Concord portraits in NIGHTSHD.PIC. Stats are a notch above
-    // Nightshade but still inside the World envelope (arm_power <= 7; boss <= 7).
+    // (roster[0] = the Meridian, the true architect = rank 1 = fought last).
+    // Faces reuse the Concord portraits in NIGHTSHD.PIC. Requiem flies ELECTRA
+    // here (not NOVA) so the Meridian's NOVA stays a unique final-boss silhouette
+    // and no two fighters share it. Stats sit a notch above Nightshade but still
+    // inside the World envelope (arm_power <= 7; boss <= 7; difficulty <= 2).
     static const enemy_spec roster[] = {
         {"The Meridian", PILOT_CRYSTAL, FACE_MERIDIAN, HAR_NOVA, 2, 28, 16, 24, 7, 6, 6, 6, 7, 7, 1, 0, 0,
          "You hunt the hand that signed the orders, ~1. I am that hand. I ended the wars, then priced the peace. Your "
-         "mentor was a rounding error."},
+         "father was a rounding error."},
         {"The Cardinal", PILOT_STEFFAN, FACE_CARDINAL, HAR_SHADOW, 2, 24, 18, 20, 6, 6, 6, 6, 6, 6, 2, 0, 0,
          "You unmasked me, ~1, so the Meridian rebuilt me sharper. Beat me clean this time -- it is the only apology "
          "I have left to give."},
@@ -416,7 +403,7 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
          "You cost me my count, ~1. I begin again at one. Electra will make sure the tally opens and closes with the "
          "same name."},
         {"Marrow", PILOT_SHIRRO, FACE_MARROW, HAR_THORN, 2, 22, 8, 18, 5, 5, 4, 4, 6, 5, 4, 0, 0,
-         "I studied your mentor's wounds and improved on them, ~1. Thorn is my new scalpel. Let us compare our "
+         "I studied your father's wounds and improved on them, ~1. Thorn is my new scalpel. Let us compare our "
          "anatomies."},
         {"Bastion", PILOT_CHRISTIAN, FACE_BASTION, HAR_GARGOYLE, 2, 20, 6, 18, 5, 4, 3, 3, 6, 6, 5, 0, 0,
          "You cracked the wall once, ~1. The Meridian poured me thicker. Grief made you fast -- it will not make you "
@@ -424,7 +411,7 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         {"Seraph", PILOT_ANGEL, FACE_SERAPH, HAR_KATANA, 1, 18, 14, 15, 5, 4, 5, 5, 5, 4, 6, 0, 0,
          "You martyred my brothers and made yourself a saint, ~1. Katana ends false gospels. Kneel and be edited."},
         {"Cinder", PILOT_JEANPAUL, FACE_CINDER, HAR_PYROS, 1, 18, 11, 15, 4, 4, 5, 5, 5, 4, 7, 0, 0,
-         "You put out the Concord, ~1. You cannot put out me. Pyros will finish what your mentor's pyre started."},
+         "You put out the Concord, ~1. You cannot put out me. Pyros will finish what your father's pyre started."},
         {"Wager", PILOT_COSSETTE, FACE_WAGER, HAR_FLAIL, 1, 17, 12, 14, 4, 4, 4, 4, 4, 4, 8, 0, 0,
          "The whole floor is betting against you now, ~1, and I am the house. Flail collects in bone. Nothing "
          "personal -- it is just math."},
@@ -449,7 +436,7 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         "The Meridian's NOVA drops to one knee and does not rise. Smoke curls from the cockpit. The arena that funded "
         "his empire for thirty years goes silent, ~1.",
         "The old architect drags himself into the light. \"I gave the world a game instead of a war,\" he rasps. "
-        "\"Your mentor called it a cage. Same thing, cheaper.\"",
+        "\"Your father called it a cage. Same thing, cheaper.\"",
         "You step past him. The stewards have him now -- the courts after that. Vengeance was the easy sentence. You "
         "hand him the one that lasts: the truth, on every feed.",
         "The Cardinal waits at the gate, mask gone, no longer hiding. \"The Concord dies with him,\" they say. \"What "
@@ -459,7 +446,7 @@ static int gen_reckoning(const char *resource_dir, const char *out_dir, const ch
         "One by one the survivors step from the tunnels -- Requiem, Cinder, even Sparrow, the mask they killed for "
         "already cast aside. Not a syndicate now. Just pilots, watching.",
         "In the emptying stands a child tugs a parent's sleeve and points. \"Who is that?\" The answer runs the rows "
-        "like current, the way it once ran for your mentor: \"~1. That's ~1.\"",
+        "like current, the way it once ran for your father: \"~1. That's ~1.\"",
     };
     set_story(&trn, story, (int)(sizeof(story) / sizeof(story[0])));
 
