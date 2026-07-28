@@ -50,7 +50,15 @@ set(CMAKE_C_STANDARD 11)
 if(MSVC)
     # remove cmake's default /W3 to avoid warning D9025
     string(REGEX REPLACE "/W3" "" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /permissive- /W4 /WX")
+    # Upstream targets the VS2022 (v143) toolset. On the older VS2019 (v142)
+    # toolset, /W4 emits version-specific warnings (C4201, C4706, C5105, ...)
+    # that v143 does not, so /WX makes them fatal. Keep warnings visible but
+    # non-fatal when building with the older toolset.
+    if(MSVC_VERSION LESS 1930)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /permissive- /W4")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /permissive- /W4 /WX")
+    endif()
     # Disable select warnings:
     # C4100: unreferenced formal parameter
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4100")
@@ -428,6 +436,9 @@ if(BUILD_EXPANSION)
     add_executable(mkpilot tools/expansion/mkpilot.c)
     target_link_libraries(mkpilot PRIVATE ${CORELIBS})
     target_link_libraries(mkpilot PRIVATE openomf::argtable openomf::zip openomf::SDL2main openomf::epoxy)
+    add_executable(mkportrait tools/expansion/mkportrait.c)
+    target_link_libraries(mkportrait PRIVATE ${CORELIBS})
+    target_link_libraries(mkportrait PRIVATE openomf::argtable openomf::zip openomf::SDL2main openomf::epoxy)
     message(STATUS "Development: Kyra expansion generator enabled")
 endif()
 

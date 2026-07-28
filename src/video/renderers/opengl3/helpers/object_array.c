@@ -1,6 +1,12 @@
 #include <assert.h>
 #include <epoxy/gl.h>
+// The VS2019 (v142) toolset ships C11 _Alignof but not the <stdalign.h> header
+// that defines the alignof macro (added in VS2022). Fall back to the keyword.
+#if defined(_MSC_VER) && !defined(alignof)
+#define alignof _Alignof
+#else
 #include <stdalign.h>
+#endif
 #include <stdlib.h>
 
 #include "utils/allocator.h"
